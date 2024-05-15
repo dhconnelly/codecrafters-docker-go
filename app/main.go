@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	// Uncomment this block to pass the first stage!
@@ -15,11 +16,21 @@ func main() {
 	args := os.Args[4:len(os.Args)]
 
 	cmd := exec.Command(command, args...)
-	output, err := cmd.Output()
+	outPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Printf("Err: %v", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
+	go io.Copy(os.Stdout, outPipe)
+	errPipe, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	go io.Copy(os.Stderr, errPipe)
 
-	fmt.Println(string(output))
+	if err = cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	if err = cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
 }
