@@ -1,18 +1,60 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
+type authResponse struct {
+	Token string `json:"token`
+}
+
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 func main() {
+	image := os.Args[2]
+	toks := strings.Split(image, ":")
+	name := toks[0]
+	tag := toks[1]
+
+	tokenURL := fmt.Sprintf("https://auth.docker.io/token?client_id=dhcdocker&service=registry.docker.io&scope=repository:library/%s:pull", name)
+	tokenResp, err := http.Get(tokenURL)
+	if err != nil {
+		log.Fatalf("failed to fetch auth token: %s", err)
+	}
+	decoder := json.NewDecoder(tokenResp.Body)
+	var authResp authResponse
+	if err = decoder.Decode(&authResp); err != nil {
+		log.Fatalf("failed to decode auth response: %s", err)
+	}
+	token := authResp.Token
+
+	manifestURL := fmt.Sprintf("https://registry-1.docker.io/v2/library/%s/manifests/%s", name, tag)
+	manifestReq, err := http.NewRequest("GET", manifestURL, nil)
+	if err != nil {
+		log.Fatalf("failed to make manifest request: %s", err)
+	}
+	manifestReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+	fmt.Println(manifestReq)
+	manifestResp, err := http.DefaultClient.Do(manifestReq)
+	if err != nil {
+		log.Fatal(err)
+	}
+	manifestBody, err := io.ReadAll(manifestResp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(manifestBody))
+
 	command := os.Args[3]
 	args := os.Args[4:len(os.Args)]
 
