@@ -9,9 +9,6 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
-	// Uncomment this block to pass the first stage!
-	// "os"
-	// "os/exec"
 )
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
@@ -48,15 +45,16 @@ func main() {
 	originalBin.Close()
 	targetBin.Close()
 
-	// chroot
-	syscall.Chroot(dir)
-
-	// run the program in the chroot
+	// run the program in the chroot in a new namespace
 	chrootCommand := filepath.Join("/", relCommand)
 	cmd := exec.Command(chrootCommand, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Chroot:     dir,
+		Cloneflags: syscall.CLONE_NEWPID,
+	}
 
 	// exit
 	var exitError *exec.ExitError
