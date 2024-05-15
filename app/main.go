@@ -36,9 +36,7 @@ func main() {
 
 	// authenticate
 	authURL := fmt.Sprintf("https://auth.docker.io/token?client_id=dhcdocker&service=registry.docker.io&scope=repository:library/%s:pull", name)
-	fmt.Println(authURL)
 	authResp, err := http.Get(authURL)
-	fmt.Println(authResp)
 	if err != nil {
 		log.Fatalf("failed to fetch auth token: %s", err)
 	}
@@ -67,7 +65,14 @@ func main() {
 	}
 	layers := manifest.FsLayers
 
+	// set up chroot directory
+	dir, err := os.MkdirTemp("", "mydocker")
+	if err != nil {
+		log.Fatalf("failed to create chroot dir: %s", err)
+	}
+
 	// fetch layers
+	var layerPaths []string
 	for _, layer := range layers {
 		layerURL := fmt.Sprintf(
 			"https://registry-1.docker.io/v2/library/%s/blobs/%s",
@@ -81,17 +86,21 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to fetch layer: %s", err)
 		}
-		fmt.Println(layerResp)
+		f, err := os.CreateTemp(dir, "layer")
+		if err != nil {
+			log.Fatalf("failed to create layer file: %s", err)
+		}
+		if _, err = io.Copy(f, layerResp.Body); err != nil {
+			log.Fatalf("failed to download layer file: %s", err)
+		}
+		layerPaths = append(layerPaths, f.Name())
+		f.Close()
 	}
+
+	fmt.Printf("saved layer files: %s\n", layerPaths)
 
 	command := os.Args[3]
 	args := os.Args[4:len(os.Args)]
-
-	// set up chroot directory
-	dir, err := os.MkdirTemp("", "mydocker")
-	if err != nil {
-		log.Fatalf("failed to create chroot dir: %s", err)
-	}
 
 	// copy the binary to the chroot
 	originalBin, err := os.Open(command)
