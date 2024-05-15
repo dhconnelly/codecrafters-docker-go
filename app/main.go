@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -30,7 +31,10 @@ func main() {
 	if err = cmd.Start(); err != nil {
 		log.Fatal(err)
 	}
-	if err = cmd.Wait(); err != nil {
+	var exitError *exec.ExitError
+	if err = cmd.Wait(); errors.As(err, &exitError) {
+		os.Exit(exitError.ExitCode())
+	} else if err != nil {
 		log.Fatal(err)
 	}
 }
