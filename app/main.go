@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 )
 
@@ -15,11 +14,13 @@ func main() {
 		log.Fatalf("usage: your_docker.sh run <image> <command> <args...>")
 	}
 
+	log.Println("authenticating to docker hub...")
 	client, err := newDockerClient(args.imageName)
 	if err != nil {
 		log.Fatalf("failed to connect to docker hub: %s", err)
 	}
 
+	log.Printf("fetching manifest for %s:%s...\n", args.imageName, args.imageTag)
 	manifest, err := client.fetchManifest(args.imageName, args.imageTag)
 	if err != nil {
 		log.Fatalf("failed to fetch manifest: %s", err)
@@ -31,6 +32,7 @@ func main() {
 	}
 
 	for _, layer := range manifest.Layers {
+		log.Printf("fetching layer %s...", layer.Digest)
 		path, err := client.downloadLayer(args.imageName, layer.Digest, chrootDir)
 		if err != nil {
 			log.Fatalf("failed to download layer: %s", err)
@@ -43,8 +45,11 @@ func main() {
 		}
 	}
 
-	chrootCommand := filepath.Join("/", args.command)
-	cmd := exec.Command(chrootCommand, args.args...)
+	log.Printf("executing %s %s in container...", args.command, args.args)
+	if err = os.Chdir(chrootDir); err != nil {
+		log.Fatalf("failed to enter chroot dir: %s", err)
+	}
+	cmd := exec.Command(args.command, args.args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -57,6 +62,6 @@ func main() {
 	if err := cmd.Run(); errors.As(err, &exitError) {
 		os.Exit(exitError.ExitCode())
 	} else if err != nil {
-		log.Fatalf("failed to run %s in chroot with newpid: %s", chrootCommand, err)
+		log.Fatalf("failed to run %s in container: %s", args.command, err)
 	}
 }

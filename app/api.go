@@ -8,6 +8,8 @@ import (
 	"os"
 )
 
+const manifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
+
 type AuthResponse struct {
 	Token string `json:"token"`
 }
@@ -71,9 +73,13 @@ func (client *dockerClient) fetchManifest(name, tag string) (Manifest, error) {
 	if err = manifestDecoder.Decode(&manifest); err != nil {
 		return Manifest{}, err
 	}
-	if manifest.MediaType != "application/vnd.docker.distribution.manifest.v2+json" {
-		return Manifest{}, err
+	if manifest.MediaType != manifestMediaType {
+		return Manifest{}, fmt.Errorf(
+			"unsupported media type: want %s, got %s",
+			manifestMediaType,
+			manifest.MediaType)
 	}
+	fmt.Println("manifest:", manifest)
 	return manifest, nil
 }
 
