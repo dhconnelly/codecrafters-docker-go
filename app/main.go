@@ -101,7 +101,12 @@ func main() {
 	image := os.Args[2]
 	toks := strings.Split(image, ":")
 	name := toks[0]
-	tag := toks[1]
+	var tag string
+	if len(toks) > 1 {
+		tag = toks[1]
+	} else {
+		tag = "latest"
+	}
 
 	// authenticate
 	authURL := fmt.Sprintf("https://auth.docker.io/token?client_id=dhcdocker&service=registry.docker.io&scope=repository:library/%s:pull", name)
