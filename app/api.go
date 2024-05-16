@@ -79,7 +79,6 @@ func (client *dockerClient) fetchManifest(name, tag string) (Manifest, error) {
 			manifestMediaType,
 			manifest.MediaType)
 	}
-	fmt.Println("manifest:", manifest)
 	return manifest, nil
 }
 
