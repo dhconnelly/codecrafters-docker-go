@@ -53,9 +53,17 @@ func main() {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// set up the container
+	// https://ericchiang.github.io/post/containers-from-scratch/
+	// https://www.youtube.com/watch?v=8fi7uSYlOdc
+	// TODO: cgroups for resource management
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Chroot:     chrootDir,
-		Cloneflags: syscall.CLONE_NEWPID,
+		Chroot:       chrootDir,           // new root
+		Unshareflags: syscall.CLONE_NEWNS, // new pid namespace
+		Cloneflags: syscall.CLONE_NEWPID | // pid 1
+			syscall.CLONE_NEWNS | // new mount namespace
+			syscall.CLONE_NEWUTS, // new hostname namespace
 	}
 
 	var exitError *exec.ExitError
