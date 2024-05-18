@@ -10,6 +10,12 @@ import (
 
 const manifestMediaType string = "application/vnd.docker.distribution.manifest.v2+json"
 
+type image struct {
+	repo string
+	name string
+	tag  string
+}
+
 type AuthResponse struct {
 	Token string `json:"token"`
 }
@@ -30,20 +36,21 @@ type dockerClient struct {
 	token string
 }
 
-func newDockerClient(imageName string) (*dockerClient, error) {
-	token, err := authenticate(imageName)
+func newDockerClient(img image) (*dockerClient, error) {
+	token, err := authenticate(img)
 	if err != nil {
 		return nil, err
 	}
 	return &dockerClient{token: token}, nil
 }
 
-func authenticate(name string) (string, error) {
+func authenticate(img image) (string, error) {
 	// TODO: extract base url
 	// TODO: extract constants
 	authURL := fmt.Sprintf(
-		"https://auth.docker.io/token?client_id=dhcdocker&service=registry.docker.io&scope=repository:library/%s:pull",
-		name)
+		"https://auth.docker.io/token?client_id=dhcdocker&service=registry.docker.io&scope=repository:%s/%s:pull",
+		img.repo,
+		img.name)
 	authResp, err := http.Get(authURL)
 	if err != nil {
 		return "", err
@@ -56,8 +63,8 @@ func authenticate(name string) (string, error) {
 	return auth.Token, nil
 }
 
-func (client *dockerClient) fetchManifest(name, tag string) (Manifest, error) {
-	manifestURL := fmt.Sprintf("https://registry-1.docker.io/v2/library/%s/manifests/%s", name, tag)
+func (client *dockerClient) fetchManifest(img image) (Manifest, error) {
+	manifestURL := fmt.Sprintf("https://registry-1.docker.io/v2/%s/%s/manifests/%s", img.repo, img.name, img.tag)
 	manifestReq, err := http.NewRequest("GET", manifestURL, nil)
 	if err != nil {
 		return Manifest{}, err
@@ -82,10 +89,10 @@ func (client *dockerClient) fetchManifest(name, tag string) (Manifest, error) {
 	return manifest, nil
 }
 
-func (client *dockerClient) fetchLayer(w io.Writer, name, digest string) error {
+func (client *dockerClient) fetchLayer(w io.Writer, img image, digest string) error {
 	layerURL := fmt.Sprintf(
-		"https://registry-1.docker.io/v2/library/%s/blobs/%s",
-		name, digest)
+		"https://registry-1.docker.io/v2/%s/%s/blobs/%s",
+		img.repo, img.name, digest)
 	layerReq, err := http.NewRequest("GET", layerURL, nil)
 	if err != nil {
 		return err
@@ -101,12 +108,12 @@ func (client *dockerClient) fetchLayer(w io.Writer, name, digest string) error {
 	return nil
 }
 
-func (client *dockerClient) downloadLayer(name, digest, dir string) (string, error) {
+func (client *dockerClient) downloadLayer(img image, digest, dir string) (string, error) {
 	f, err := os.CreateTemp(dir, "layer-*.tar.gz")
 	if err != nil {
 		return "", err
 	}
-	if err = client.fetchLayer(f, name, digest); err != nil {
+	if err = client.fetchLayer(f, img, digest); err != nil {
 		return "", err
 	}
 	if err = f.Close(); err != nil {

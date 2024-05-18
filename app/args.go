@@ -1,34 +1,47 @@
 package main
 
 import (
-	"os"
 	"strings"
 )
 
-type invocation struct {
-	imageName string
-	imageTag  string
-	command   string
-	args      []string
+type parentArgs struct {
+	img     image
+	command string
+	args    []string
 }
 
-func parseArgs(args []string) (*invocation, bool) {
-	if len(args) < 4 {
-		return nil, false
+type childArgs struct {
+	chroot  string
+	command string
+	args    []string
+}
+
+func parseImage(s string) image {
+	img := image{repo: "library", tag: "latest"}
+	slash := strings.Index(s, "/")
+	colon := strings.Index(s, ":")
+	if slash >= 0 {
+		img.repo = s[:slash]
 	}
-	image := os.Args[2]
-	toks := strings.Split(image, ":")
-	if len(toks) < 1 {
-		return nil, false
+	if colon >= 0 {
+		img.tag = s[colon+1:]
+	} else {
+		colon = len(s)
 	}
-	imageName := toks[0]
-	imageTag := "latest"
-	if len(toks) > 1 {
-		imageTag = toks[1]
-	}
-	command := os.Args[3]
-	rest := os.Args[4:len(os.Args)]
-	return &invocation{
-		imageName: imageName, imageTag: imageTag, command: command, args: rest,
-	}, true
+	img.name = s[slash+1 : colon]
+	return img
+}
+
+func parseParentArgs(args []string) parentArgs {
+	img := parseImage(args[0])
+	command := args[1]
+	rest := args[2:]
+	return parentArgs{img: img, command: command, args: rest}
+}
+
+func parseChildArgs(args []string) childArgs {
+	chroot := args[0]
+	command := args[1]
+	rest := args[2:]
+	return childArgs{chroot: chroot, command: command, args: rest}
 }
